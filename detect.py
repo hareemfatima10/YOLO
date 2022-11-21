@@ -64,16 +64,20 @@ def wrap_detection(input_image, output_data):
             if (classes_scores[class_id] > 0.1):
 
                 confidences.append(confidence)
-
+              
                 class_ids.append(class_id)
-
-                x, y, w, h = row[0].item(), row[1].item(), row[2].item(), row[3].item() 
+                x, y, w, h = row[0].item(), row[1].item(), row[2].item(), row[3].item()
                 left = int((x - 0.5 * w) * x_factor)
                 top = int((y - 0.5 * h) * y_factor)
                 width = int(w * x_factor)
                 height = int(h * y_factor)
-                box = np.array([left, top, width, height])
+                box = np.array([left, top, left+width, top+height])
+                
+                
                 boxes.append(box)
+    print(len(boxes))
+
+                
 
     indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.25, 0.45) 
 
@@ -104,23 +108,36 @@ is_cuda = False
 net = build_model(is_cuda)
 
 
-def inference(img_arr):
+def y_inference(img_arr):
     
-    frame=cv2.imread("/content/drive/MyDrive/FaceSwap-Kevin/Temp_test/AvatarImagesFull/HighresScreenshot00019.png")
-    
-    inputImage = format_yolov5(frame)
-    outs = detect(inputImage, net)
+    yolo_res = []
+    for frame in img_arr:
+      inputImage = format_yolov5(frame)
+      outs = detect(inputImage, net)
 
-    class_ids, confidences, boxes = wrap_detection(inputImage, outs)
+      class_ids, confidences, boxes = wrap_detection(inputImage, outs)
 
-    for (classid, confidence, box) in zip(class_ids, confidences, boxes):
-         if classid==1:
-             color = [0,0,255]
-             cv2.rectangle(frame, box, color, 2)
-             cv2.rectangle(frame, (box[0], box[1] - 20), (box[0] + box[2], box[1]), color, -1)
-             cv2.putText(frame, class_list[classid], (box[0], box[1] - 10), cv2.FONT_HERSHEY_SIMPLEX, .5, (0,0,0))
-
-    
-    
-    
-    return frame
+      for (classid, confidence, box) in zip(class_ids, confidences, boxes):
+          if classid==1:
+              color = [0,0,255]
+              xmin,ymin,xmax,ymax=box
+              w=xmax-xmin
+              h=ymax-ymin
+              xmin -= abs(int(0.15 * (xmax - xmin)))
+              xmax += abs(int(0.15 * (xmax - xmin)))
+              ymin -= abs(int(0.15 * (ymax - ymin)))
+              ymax += abs(int(0.15 * (ymax - ymin)))
+              xmin, xmax, ymin, ymax = abs(xmin), abs(xmax), abs(ymin), abs(ymax)
+              
+              x_center = np.average([xmin, xmax])
+              y_center = np.average([ymin, ymax])
+              size = max(abs(xmax-xmin), abs(ymax-ymin))
+                
+              xmin, xmax = x_center-size/2, x_center+size/2
+              ymin, ymax = y_center-size/2, y_center+size/2
+              
+              #cv2.rectangle(frame,(int(xmin),int(ymin)),(int(xmax),int(ymax)), color, 2)
+              cropped_img = frame[int(ymin):int(ymax),int(xmin):int(xmax)]
+              
+      yolo_res.append(cropped_img)
+    return yolo_res
