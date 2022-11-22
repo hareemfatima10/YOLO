@@ -18,8 +18,8 @@ def build_model(is_cuda):
 INPUT_WIDTH = 640
 INPUT_HEIGHT = 640
 SCORE_THRESHOLD = 0.2
-NMS_THRESHOLD = 0.4
-CONFIDENCE_THRESHOLD = -10
+NMS_THRESHOLD = 0.1
+CONFIDENCE_THRESHOLD = 0.6
 
 def detect(image, net):
     blob = cv2.dnn.blobFromImage(image, 1/255.0, (INPUT_WIDTH, INPUT_HEIGHT), swapRB=True, crop=False)
@@ -45,52 +45,55 @@ def wrap_detection(input_image, output_data):
     boxes = []
 
     rows = output_data[0].shape[1]
-    print("here",rows)
     image_width, image_height, _ = input_image.shape
 
     x_factor = image_width / INPUT_WIDTH
     y_factor =  image_height / INPUT_HEIGHT
-
+    max_area=-1
+    area_box=[]
     for r in range(rows):
         row=output_data[0][0][r]
         #print(row.shape)
         confidence = row[4]
+        
         #print(confidence)
-        if confidence >= 0.1:
+        if confidence >= CONFIDENCE_THRESHOLD:
 
             classes_scores = row[5:]
+            print(classes_scores)
             _, _, _, max_indx = cv2.minMaxLoc(classes_scores)
             class_id = max_indx[1]
-            if (classes_scores[class_id] > 0.1):
+
+            if (classes_scores[class_id] > 0.3) and class_id==1:
 
                 confidences.append(confidence)
-              
+
                 class_ids.append(class_id)
                 x, y, w, h = row[0].item(), row[1].item(), row[2].item(), row[3].item()
                 left = int((x - 0.5 * w) * x_factor)
                 top = int((y - 0.5 * h) * y_factor)
                 width = int(w * x_factor)
                 height = int(h * y_factor)
-                box = np.array([left, top, left+width, top+height])
+                if width*height>max_area:
+                    max_area=width*height
+                    area_box=np.array([left, top, left+width, top+height])
+                #box = np.array([left, top, left+width, top+height])
                 
                 
-                boxes.append(box)
-    print(len(boxes))
+    boxes.append(area_box)
 
-                
+    #indexes = cv2.dnn.NMSBoxes(boxes, confidences, CONFIDENCE_THRESHOLD, NMS_THRESHOLD) 
+    #print(confidences)
+    #result_class_ids = []
+    #result_confidences = []
+    #result_boxes = []
 
-    indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.25, 0.45) 
+    #for i in indexes:
+    #    result_confidences.append(confidences[i])
+    #    result_class_ids.append(class_ids[i])
+     #   result_boxes.append(boxes[i])
 
-    result_class_ids = []
-    result_confidences = []
-    result_boxes = []
-
-    for i in indexes:
-        result_confidences.append(confidences[i])
-        result_class_ids.append(class_ids[i])
-        result_boxes.append(boxes[i])
-
-    return result_class_ids, result_confidences, result_boxes
+    return boxes#result_class_ids, result_confidences, result_boxes
 
 def format_yolov5(frame):
 
@@ -107,7 +110,6 @@ is_cuda = False
 
 net = build_model(is_cuda)
 
-
 def y_inference(img_arr):
     
     yolo_res = []
@@ -115,29 +117,29 @@ def y_inference(img_arr):
       inputImage = format_yolov5(frame)
       outs = detect(inputImage, net)
 
-      class_ids, confidences, boxes = wrap_detection(inputImage, outs)
-
-      for (classid, confidence, box) in zip(class_ids, confidences, boxes):
-          if classid==1:
-              color = [0,0,255]
-              xmin,ymin,xmax,ymax=box
-              w=xmax-xmin
-              h=ymax-ymin
-              xmin -= abs(int(0.15 * (xmax - xmin)))
-              xmax += abs(int(0.15 * (xmax - xmin)))
-              ymin -= abs(int(0.15 * (ymax - ymin)))
-              ymax += abs(int(0.15 * (ymax - ymin)))
-              xmin, xmax, ymin, ymax = abs(xmin), abs(xmax), abs(ymin), abs(ymax)
+      boxes = wrap_detection(inputImage, outs)
+      
+      for  box in boxes:
+          if  len(list(box))==0:
+            continue
+          color = [0,0,255]
+          xmin,ymin,xmax,ymax=box
+          w=xmax-xmin
+          h=ymax-ymin
+          xmin -= abs(int(0.15 * (xmax - xmin)))
+          xmax += abs(int(0.15 * (xmax - xmin)))
+          ymin -= abs(int(0.15 * (ymax - ymin)))
+          ymax += abs(int(0.15 * (ymax - ymin)))
+          xmin, xmax, ymin, ymax = abs(xmin), abs(xmax), abs(ymin), abs(ymax)
               
-              x_center = np.average([xmin, xmax])
-              y_center = np.average([ymin, ymax])
-              size = max(abs(xmax-xmin), abs(ymax-ymin))
-                
-              xmin, xmax = x_center-size/2, x_center+size/2
-              ymin, ymax = y_center-size/2, y_center+size/2
+          x_center = np.average([xmin, xmax])
+          y_center = np.average([ymin, ymax])
+          size = max(abs(xmax-xmin), abs(ymax-ymin))
+
+          xmin, xmax = x_center-size/2, x_center+size/2
+          ymin, ymax = y_center-size/2, y_center+size/2
               
               #cv2.rectangle(frame,(int(xmin),int(ymin)),(int(xmax),int(ymax)), color, 2)
-              cropped_img = frame[int(ymin):int(ymax),int(xmin):int(xmax)]
-              
+          cropped_img = frame[int(ymin):int(ymax),int(xmin):int(xmax)]
       yolo_res.append(cropped_img)
     return yolo_res
