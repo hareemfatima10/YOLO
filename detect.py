@@ -4,7 +4,7 @@ import sys
 import numpy as np
 
 def build_model(is_cuda):
-    net = cv2.dnn.readNet("/content/drive/MyDrive/FaceSwap-Kevin/final.onnx")
+    net = cv2.dnn.readNet("/content/drive/MyDrive/final.onnx")
     if is_cuda:
         print("Attempty to use CUDA")
         net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
@@ -60,7 +60,6 @@ def wrap_detection(input_image, output_data):
         if confidence >= CONFIDENCE_THRESHOLD:
 
             classes_scores = row[5:]
-            print(classes_scores)
             _, _, _, max_indx = cv2.minMaxLoc(classes_scores)
             class_id = max_indx[1]
 
@@ -140,6 +139,8 @@ def y_inference(img_arr):
           ymin, ymax = y_center-size/2, y_center+size/2
               
               #cv2.rectangle(frame,(int(xmin),int(ymin)),(int(xmax),int(ymax)), color, 2)
-          cropped_img = frame[int(ymin):int(ymax),int(xmin):int(xmax)]
-      yolo_res.append(cropped_img)
+          
+          cropped_img = inputImage[int(ymin):int(ymax),int(xmin):int(xmax)]
+          yolo_res.append(cropped_img)
+          
     return yolo_res
