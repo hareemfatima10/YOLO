@@ -4,9 +4,9 @@ import sys
 import numpy as np
 
 def build_model(is_cuda):
-    net = cv2.dnn.readNet("/content/drive/MyDrive/final.onnx")
+    net = cv2.dnn.readNet("/content/drive/MyDrive/FaceSwap-Kevin/final.onnx")
     if is_cuda:
-        print("Attempty to use CUDA")
+        print("Attempt to use CUDA")
         net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
         net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA_FP16)
     else:
@@ -53,10 +53,9 @@ def wrap_detection(input_image, output_data):
     area_box=[]
     for r in range(rows):
         row=output_data[0][0][r]
-        #print(row.shape)
         confidence = row[4]
         
-        #print(confidence)
+        
         if confidence >= CONFIDENCE_THRESHOLD:
 
             classes_scores = row[5:]
@@ -64,11 +63,11 @@ def wrap_detection(input_image, output_data):
             class_id = max_indx[1]
 
             if (classes_scores[class_id] > 0.3) and class_id==1:
-
                 confidences.append(confidence)
 
                 class_ids.append(class_id)
                 x, y, w, h = row[0].item(), row[1].item(), row[2].item(), row[3].item()
+                
                 left = int((x - 0.5 * w) * x_factor)
                 top = int((y - 0.5 * h) * y_factor)
                 width = int(w * x_factor)
@@ -105,7 +104,7 @@ def format_yolov5(frame):
 
 colors = [(255, 255, 0), (0, 255, 0)]
 
-is_cuda = False
+is_cuda = True #set to false for CPU
 
 net = build_model(is_cuda)
 
@@ -113,13 +112,20 @@ def y_inference(img_arr):
     
     yolo_res = []
     for frame in img_arr:
+      #The following lines add a black border on all sides of the image. (For pics that are zoomed into head)
+      # h,w,_=frame.shape
+      # img_dummy=np.zeros((2*h,2*w,3),dtype=np.uint8)
+      # img_dummy[int(0.5*h):int(1.5*h),int(0.5*w):int(1.5*w),::]=frame
+      # frame=img_dummy
       inputImage = format_yolov5(frame)
       outs = detect(inputImage, net)
-
+      plt.imshow(frame)
+      plt.show()
       boxes = wrap_detection(inputImage, outs)
       
       for  box in boxes:
           if  len(list(box))==0:
+            print("--123")
             continue
           color = [0,0,255]
           xmin,ymin,xmax,ymax=box
